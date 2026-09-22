@@ -52,6 +52,15 @@ git clone https://github.com/krijingle-create/maibot-jev-timing-gate.git plugins
    TypeSafe 和 classifier.dev 都不用填。
 3. 想先观察：打开影子模式，它只记录本该抑制的轮次，不改行为。
 
+### 更新
+
+```bash
+cd plugins/local_jev-timing-gate && git pull
+```
+
+WebUI 插件页的更新按钮两条路径都认：目录里有 `.git` 就 `git pull`，没有就按 manifest 的仓库地址重新克隆一份。
+两者都会保留你填好的 `config.toml`；用 `jev_config.json` 存 key 的话只有前一条会连它一起保住，
+走重新克隆前记得先把那个文件备份出来。
 
 ### 模型提供商模板（设置页下拉）
 
