@@ -1,0 +1,40 @@
+{
+  "manifest_version": 2,
+  "id": "local.jev-timing-gate",
+  "version": "1.0.0",
+  "name": "Jev 参与门控",
+  "description": "用决策模型 Jev 在 planner 请求前做一次廉价判断（带校准置信度的 Choice 原语），高置信判「本轮无需参与」时抑制这一轮，省下一次完整 planner 调用。开箱即用：只需填端点与 key，机器人昵称自动获取；支持 typesafe / classifier.dev / 任意 OpenAI 兼容网关三种接口风格；含 @机器人 确定性豁免与尾部窗口防历史提及污染；核心支持 abort 时真正跳过模型调用，否则自动降级为极简改写。",
+  "author": {
+    "name": "krijingle-create",
+    "url": "https://github.com/krijingle-create"
+  },
+  "license": "MIT",
+  "urls": {
+    "repository": "https://github.com/krijingle-create/maibot-jev-timing-gate",
+    "homepage": "https://github.com/krijingle-create/maibot-jev-timing-gate",
+    "documentation": "https://github.com/krijingle-create/maibot-jev-timing-gate#readme",
+    "issues": "https://github.com/krijingle-create/maibot-jev-timing-gate/issues"
+  },
+  "host_application": {
+    "min_version": "1.1.3",
+    "max_version": "1.99.99"
+  },
+  "sdk": {
+    "min_version": "2.7.1",
+    "max_version": "2.99.99"
+  },
+  "dependencies": [],
+  "plugin_type": "extension",
+  "display": {
+    "icon": {
+      "type": "emoji",
+      "value": "🧠"
+    }
+  },
+  "capabilities": [
+    "config.get"
+  ],
+  "i18n": {
+    "default_locale": "zh-CN"
+  }
+}

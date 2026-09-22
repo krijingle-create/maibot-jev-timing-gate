@@ -1,0 +1,38 @@
+# Jev 参与门控（jev timing gate）配置模板
+#
+# 说明：运行时的 config.toml 由 MaiBot 的 Runner 依据 config.py 里的 config_model
+# 自动生成与补齐（含字段描述）。本文件只是同样内容的一份带注释参考；
+# 想按官方建议保持仓库干净，把 config.toml 加入 .gitignore（本包已附带）。
+#
+# ─────────────── 开箱即用：只需要填两项 ───────────────
+#   api_key = "你的 key"
+#   endpoint = "你的 Jev 端点"        ← 留空即用 api_style 的默认端点
+# 机器人昵称不用填：插件通过官方 config.get 能力自动读主程序的 bot.nickname。
+#
+# 不同提供商：
+#   TypeSafe 直连      api_style=typesafe（默认）  endpoint 留空    api_key 必填
+#   classifier.dev     api_style=classifier_dev    endpoint 留空    不需要 key（免费转发）
+#   其它兼容网关        api_style=typesafe         填自己的完整 URL
+#   任意 OpenAI 兼容    api_style=openai_json      endpoint 必填
+#
+# 注意：判断会把真实群聊文本发往你配置的端点。请自行确认可接受。
+
+[plugin]
+config_version = "1.0.0"   # 配置 schema 版本，别删（缺失会被判为无版本配置而拒绝加载）
+enabled = true             # 总开关。默认开：填好 endpoint + api_key 即生效
+shadow_mode = false        # true = 只记录"本该抑制"，不改行为（建议先跑几天观察）
+api_style = "typesafe"     # typesafe / classifier_dev / openai_json
+endpoint = ""              # 留空按 api_style 取默认；openai_json 必填
+auth_header = ""           # 留空按 api_style 取默认；"none" = 不发送鉴权头
+auth_prefix = ""           # 留空按 api_style 取默认；"none" = 不带前缀直传 key
+api_key = ""               # 填这里即可；也可放插件目录 jev_config.json（600 权限）隐藏密钥
+model = "jev-latest"       # 实测 jev-1.13.0 也可用；jev-fast / jev 会返回 400
+timeout_sec = 6.0          # 超时即放行；必须小于插件 hook 超时 8 秒
+state_max_chars = 3000     # 送给 Jev 的文本上限（取最新内容）。调小省钱，但实测砍到 1000 以下判断会跑偏
+
+[gate]
+enabled = true
+probability_threshold = 0.8             # probabilities["no_reply"] ≥ 该值才抑制（实测抖动约为 confidence 的一半）
+confidence_fallback_threshold = 0.62    # 端点未返回 probabilities 时用 confidence，阈值含实测抖动余量
+bot_aliases = []                        # 留空 = 自动读主程序 bot.nickname（推荐）；自动失败时再手填，如 ["小助手"]
+mention_window_chars = 600              # 只在 state 尾部这段范围内找 @提及；别改大（会撞上历史提及残留）

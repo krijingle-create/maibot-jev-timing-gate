@@ -1,0 +1,9 @@
+# 运行时配置：由 Runner 依据 config_model 生成，不入库（官方建议）
+/config.toml
+
+# 运行期产物
+__pycache__/
+*.pyc
+
+# 想把 API key 藏在配置界面之外时使用（权限建议 600）
+jev_config.json
