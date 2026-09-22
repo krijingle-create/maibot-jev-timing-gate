@@ -1,0 +1,3 @@
+# 统一按 LF 存取：插件要跑在 Linux 的 MaiBot 上，
+# 也避免 Windows 检出成 CRLF 后按字符串改文件时匹配不上。
+* text=auto eol=lf
