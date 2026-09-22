@@ -13,18 +13,17 @@ Jev 提供 Choice / Score / Noul 三种原语，返回带校准置信度的结�
 
 下面的量级来自本插件在 MaiBot 1.2.5 上的实测，仅供参考：
 
-- 一个完整 planner 轮次的 prompt 通常几千 token（6k 量级）；被抑制的轮次只剩几十 token，
-  打了核心补丁后是 0。
+- 一个完整 planner 轮次的 prompt 通常几千 token（6k 量级）；被抑制的轮次只剩几十 token：
+  只发一条「本轮无需参与」提示，不带选中的历史消息，也不带工具定义。
 - 抑制率取决于群里的噪声轮次占比，实测大约在 1/4 到 1/3。
 - Jev 每次判定约 1 到 2k token，与送去的文本长度成正比。
 
 开销和收益量级接近，近似打平：每轮都要付一次 Jev 判定，只有一部分轮次能省下 planner。
-实际收益主要在三处：
+实际收益主要在两处：
 
 1. 明确的噪声轮次（别的 bot 的指令刷屏、纯灌水）不再走完整规划；
 2. 抑制会推进 MaiBot 原生的空闲退避：连续空闲触发指数退避（15 秒起、最多 300 秒），
-   退避窗口内的新消息不会触发 planner；
-3. 打上核心补丁后，抑制轮零 token、零模型延迟，也不再往上下文里塞模型为遵守指令写的推理。
+   退避窗口内的新消息不会触发 planner。
 
 这些数字不能直接套到你的实例：planner 的 prompt 大小、群里的噪声比例、空闲退避配置都会让结果差很多。
 想看清自己这儿的量级，先把 `shadow_mode` 设成 `true` 只做观察，再按日志估算。
@@ -112,38 +111,29 @@ grep -a 'Jev 门控' logs/nohup.log | tail -20
 Jev 门控：检测到 @机器人，跳过门控，正常进入 Planner          ← 豁免，不调用 Jev
 Jev 门控：continue (conf=0.44 p_no_reply=0.28)，正常进入 Planner
 Jev 门控：no_reply 但证据不足 (p_no_reply=0.61 < 0.80 …)   ← 拿不准就放行
-Jev 门控：判定无需参与(p_no_reply=0.95 >= 0.80 …)，已请求中止本轮
+Jev 门控：判定无需参与(p_no_reply=0.95 >= 0.80 …)，本轮已改写成极简请求
 ```
 
 影子模式下最后一行会变成 `Jev 门控[影子]：本该抑制（…），本轮不改行为`。
 
 ---
 
-## 三、可选：让抑制轮一个 token 都不花（核心补丁）
-
-不装补丁也能用：被判「无需参与」的轮次仍会发一次极简模型请求，几十 token。
-
-装上补丁后，这一轮完全不发请求，零 token、零延迟，也不会往上下文里塞模型为遵守指令写的推理。
-
-```bash
-python core_patch/apply_gate_abort_patch.py /path/to/MaiBot
-# 完整重启 MaiBot（核心改动不热重载）
-# 撤销： python core_patch/apply_gate_abort_patch.py /path/to/MaiBot --revert
-```
-
-生效后日志会多一行 `门控中止本轮：已跳过模型请求（不消耗 token）`，下游行为不变。
-
-代价是核心文件会被改动（`git status` 显示 modified）。升级 MaiBot 前先 `--revert`，升级后重打。
-
----
-
-## 四、边界与注意事项
+## 三、边界与注意事项
 
 需要 Maisaka 架构（`src/maisaka/`），也就是 dev / main / neo-mai 分支。`classical` 老架构没有这些
 hook，装不上。
 
 不要和同类门控同时开。若你另外还装了一个内置 Jev 门控的插件，两者同时启用会让每轮调用两次 Jev，
 两套抑制逻辑同时生效，请二选一。
+
+抑制轮不是零成本：它仍要发一次模型请求，只是内容被压成一条提示，几十 token。要让这一轮一个 token
+都不花，需要宿主允许 `maisaka.planner.before_request` 中止本轮，而官方 Hook 表把该 hook 标成
+「允许 abort ❌ · 允许改参 ✅」（[Hook 处理器文档](https://docs.mai-mai.org/plugin/hooks)）。
+插件按文档走「改参」这条路：本包不含任何改写宿主核心或配置文件的脚本，插件也只通过官方能力
+（`config.get`）读主程序配置，不直读宿主文件。
+
+如果你按旧版说明给宿主打过 abort 核心补丁，插件升级后不再返回 abort，那段补丁已经不起作用，用
+`git checkout src/maisaka/chat_loop_service.py` 还原即可（升级 MaiBot 前务必先还原）。
 
 判断会把真实群聊文本发送到你配置的端点。实测把昵称和群名片匿名化后判断会明显跑偏：`@昵称` 换成
 `@我` 后，被点名的消息反而被判成不用回，置信度 0.84。因此插件按原样发送文本。如果群里的人在意隐私，
@@ -156,7 +146,7 @@ Jev 只做判断，不生成文本，不能替 planner 或 replyer 写任何东�
 
 ---
 
-## 五、文件说明
+## 四、文件说明
 
 | 文件 | 作用 |
 |---|---|
@@ -164,5 +154,4 @@ Jev 只做判断，不生成文本，不能替 planner 或 replyer 写任何东�
 | `gate_core.py` | 纯逻辑（状态提取 / @豁免窗口 / 判定 / 多提供商适配），不依赖 SDK，可离线单测 |
 | `config.py` / `config.example.toml` | 配置模型（含设置页标签与下拉）与带注释的参考 |
 | `tests/test_gate_core.py` | 65 条离线用例（`python tests/test_gate_core.py`） |
-| `core_patch/` | 可选核心补丁：让抑制轮不发模型请求 |
 | `LICENSE` | 许可证（MIT） |

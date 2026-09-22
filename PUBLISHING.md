@@ -39,3 +39,22 @@ CI 会自动读取你仓库的 `_manifest.json` 校验，结果评论在 Issue �
 - `_manifest.json` 是 `extra="forbid"` 严格模式：**用到的字段必须在 SDK 的 manifest 模型里声明过**；
   用到的能力必须写进 `capabilities`（宿主按能力令牌授权，未声明会被拒）。
 - 提交前自检：`config.toml` 不要入库（已在 `.gitignore`）；`jev_config.json`（若用于存 key）也不要入库。
+
+## 四、审核回应记录
+
+### 2026-09-22 核心补丁与宿主文件直读（1.0.0 → 1.0.1）
+
+审核要求：插件包不要附带改动宿主核心的手段；去掉绕过 `config.get`、直读宿主配置文件的兜底。处理如下。
+
+1. 删除 `core_patch/apply_gate_abort_patch.py`（会改写宿主 `src/maisaka/chat_loop_service.py` 的
+   abort 补丁，靠字符串锚点维持）。官方 Hook 表把 `maisaka.planner.before_request` 标为
+   「允许 abort ❌ · 允许改参 ✅」，插件改为只走「改参」这一条路：把本轮 items 换成一条跳过提示、
+   清空 `tool_definitions`，返回 `{"action": "continue", "modified_kwargs": ...}`。
+   要做到抑制轮零 token，需要宿主开放该 hook 的 abort，本插件不再自行争取。
+   脚本仍留在 git 历史里：`git show 21e9f99:core_patch/apply_gate_abort_patch.py`。
+2. 删除 `plugin.py` 的 `_nickname_from_file()`（反向遍历父目录直读 `config/bot_config.toml`）。
+   昵称现在只通过 `config.get` 能力读；读不到就拒绝启用门控，并在日志里要求手填 `[gate] bot_aliases`。
+   这条能力路径在真实环境验证过（加载日志 `别名=['花子']（来源：自动读主程序配置 bot.nickname）`）。
+
+配置字段没有变化，`CONFIG_SCHEMA_VERSION` 保持 1.0.0；只递增了 `_manifest.json` 的 `version`。
+对使用者的行为影响：抑制轮不再可能零 token，固定走原有的「极简改写」路径；判定逻辑与阈值不变。

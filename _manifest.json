@@ -1,9 +1,9 @@
 {
   "manifest_version": 2,
   "id": "local.jev-timing-gate",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "name": "Jev 参与门控",
-  "description": "用决策模型 Jev 在 planner 请求前做一次廉价判断（带校准置信度的 Choice 原语），高置信判「本轮无需参与」时抑制这一轮，省下一次完整 planner 调用。开箱即用：只需填端点与 key，机器人昵称自动获取；支持 typesafe / classifier.dev / 任意 OpenAI 兼容网关三种接口风格；含 @机器人 确定性豁免与尾部窗口防历史提及污染；核心支持 abort 时真正跳过模型调用，否则自动降级为极简改写。",
+  "description": "用决策模型 Jev 在 planner 请求前做一次廉价判断（带校准置信度的 Choice 原语），高置信判「本轮无需参与」时把这一轮改写成一条极简请求（不带历史消息与工具定义），省下一次完整 planner 调用。开箱即用：只需填端点与 key，机器人昵称通过官方 config.get 能力自动获取；支持 typesafe / classifier.dev / 任意 OpenAI 兼容网关三种接口风格；含 @机器人 确定性豁免与尾部窗口防历史提及污染；不读写宿主文件，不改宿主核心。",
   "author": {
     "name": "krijingle-create",
     "url": "https://github.com/krijingle-create"

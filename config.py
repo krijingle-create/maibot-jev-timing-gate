@@ -140,8 +140,8 @@ class GateOptions(PluginConfigBase):
         default_factory=list,
         description=(
             "机器人昵称/群名片前缀，用于「被 @ 时不抑制」的确定性豁免。"
-            "**留空即自动**：插件会读主程序配置的 bot.nickname（读不到再兜底读 config/bot_config.toml）。"
-            "只有自动读取失败、或你在群里用了别的群名片时，才需要在这里手填（例如 [\"小助手\"]）。"
+            "**留空即自动**：插件通过官方配置能力读主程序的 bot.nickname。"
+            "只有读不到、或你在群里用了别的群名片时，才需要在这里手填（例如 [\"小助手\"]）。"
         ),
         json_schema_extra={"label": "@豁免别名", "hint": "留空 = 自动读 bot.nickname"},
     )

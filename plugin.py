@@ -4,7 +4,8 @@
 「本轮是否值得进入完整 planner」，高置信判「无需参与」时抑制这一轮，省下一次 planner 调用。
 
 **开箱即用**：装好后只需要填两个东西——Jev 的 `endpoint` 与 `api_key`。
-机器人昵称（@豁免用）会自动从主程序配置 `bot.nickname` 读取，不需要手填。
+机器人昵称（@豁免用）通过官方 `config.get` 能力读主程序的 `bot.nickname`；读不到时在
+`[gate] bot_aliases` 手填（拿不到昵称时门控拒绝启用，免得被点名时被静默抑制）。
 
 **多提供商**：`api_style` 支持三种接口形状，指向任意提供 Jev 的网关都能用：
   · `typesafe`（默认）—— TypeSafe 原生 Choice 原语（`state` + `questions`）
@@ -15,8 +16,8 @@
 1. 控制流用 `probabilities["no_reply"]`，**不用 confidence**——前者重复调用的抖动只有一半。
 2. @机器人 走**确定性豁免**，且只扫 state 尾部窗口——直接点名时 Jev 基本是瞎的（p≈0.5），
    而扫全窗又会被历史提及污染。
-3. 抑制时同时返回 `abort` 与极简改写：核心支持 abort 就真正跳过模型调用（零 token、零延迟），
-   不支持则被调度器忽略 abort、自动降级为"极简改写"，绝不会退化成"完全不拦"。
+3. 抑制的方式是**改写**：把本轮的 items 换成一条「本轮无需参与」提示，并清空 tool_definitions，
+   完整 planner 的历史上下文与工具都不再参与这一轮。不读宿主文件，也不改宿主核心。
 """
 
 from __future__ import annotations
@@ -24,9 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import tomllib
 import urllib.request
-from pathlib import Path
 from typing import Any
 
 from maibot_sdk import HookHandler, MaiBotPlugin
@@ -39,7 +38,6 @@ PRIVATE_KEY_FILE = "jev_config.json"
 HOOK_TIMEOUT_MS = 8000
 LOG_TAG = "Jev 门控"
 ALIAS_RETRY_SECONDS = 60.0
-NICKNAME_HINT = "config/bot_config.toml 的 [bot] nickname"
 
 
 class JevTimingGatePlugin(MaiBotPlugin):
@@ -63,9 +61,9 @@ class JevTimingGatePlugin(MaiBotPlugin):
                                     LOG_TAG, PRIVATE_KEY_FILE)
         if cfg.get("enabled") and not aliases:
             self.ctx.logger.warning(
-                "%s：拿不到机器人昵称（%s 里也没有）→ 门控**拒绝启用**，"
-                "以免在你被 @ 时被静默抑制。可在 [gate] bot_aliases 手动指定。",
-                LOG_TAG, NICKNAME_HINT,
+                "%s：拿不到机器人昵称（config.get 读不到主程序的 bot.nickname）→ 门控**拒绝启用**，"
+                "以免在你被 @ 时被静默抑制。请在 [gate] bot_aliases 手动填机器人昵称。",
+                LOG_TAG,
             )
 
     async def on_unload(self) -> None:
@@ -126,41 +124,24 @@ class JevTimingGatePlugin(MaiBotPlugin):
 
     # ------------------------------------------------------------------ 昵称（@豁免用）
     async def _resolve_aliases(self, configured: list[str]) -> tuple[list[str], str]:
-        """确定 @豁免 用的昵称：优先用户手填，否则自动读主程序配置，最后兜底读配置文件。"""
+        """确定 @豁免 用的昵称：优先用户手填，否则通过官方 config.get 读主程序配置。"""
 
         if configured:
             return configured, "插件配置手填"
-        name = ""
         try:
             result = await self.ctx.call_capability("config.get", key="bot.nickname", default="")
-            if isinstance(result, dict) and result.get("success"):
-                name = str(result.get("value") or "").strip()
-            elif isinstance(result, str):
-                name = result.strip()
         except Exception as exc:
-            self.ctx.logger.debug("%s：config.get(bot.nickname) 失败，改用配置文件兜底: %s", LOG_TAG, exc)
+            self.ctx.logger.debug("%s：config.get(bot.nickname) 调用失败: %s", LOG_TAG, exc)
+            return [], "未获取到"
+        if isinstance(result, dict) and result.get("success"):
+            name = str(result.get("value") or "").strip()
+        elif isinstance(result, str):
+            name = result.strip()
+        else:
+            name = ""
         if name:
             return [name], "自动读主程序配置 bot.nickname"
-        fallback = self._nickname_from_file()
-        if fallback:
-            return [fallback], "自动读 config/bot_config.toml"
         return [], "未获取到"
-
-    @staticmethod
-    def _nickname_from_file() -> str:
-        """兜底：直接读 `config/bot_config.toml` 的 `[bot] nickname`。"""
-
-        here = Path(__file__).resolve()
-        for parent in list(here.parents)[:4]:
-            candidate = parent / "config" / "bot_config.toml"
-            if not candidate.is_file():
-                continue
-            try:
-                data = tomllib.loads(candidate.read_text(encoding="utf-8"))
-                return str((data.get("bot") or {}).get("nickname") or "").strip()
-            except Exception:
-                return ""
-        return ""
 
     async def _aliases_for_gate(self, cfg: dict[str, Any]) -> list[str]:
         """给门控用的别名：手填优先；否则用缓存，缓存空则限频重试解析。"""
@@ -284,12 +265,12 @@ class JevTimingGatePlugin(MaiBotPlugin):
         if "tool_definitions" in kwargs:
             kwargs["tool_definitions"] = []
         self.ctx.logger.warning(
-            "%s：判定无需参与(%s=%.2f >= %.2f; conf=%s)，已请求中止本轮"
-            "（核心支持 abort 则跳过模型调用；否则回落为极简改写） items=%s->1 tools=%s->0",
+            "%s：判定无需参与(%s=%.2f >= %.2f; conf=%s)，本轮已改写成极简请求"
+            "（只留一条跳过提示、不带工具） items=%s->1 tools=%s->0",
             LOG_TAG, decision["evidence"], decision["value"], decision["limit"],
             conf_text, original_items, original_tools,
         )
-        return {"action": "abort", "modified_kwargs": kwargs}
+        return {"action": "continue", "modified_kwargs": kwargs}
 
     # ------------------------------------------------------------------ Hook
     @HookHandler(
