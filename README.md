@@ -33,12 +33,25 @@ Jev 提供 Choice / Score / Noul 三种原语，返回带校准置信度的结�
 
 ## 二、安装（开箱即用：只需要填两个字段）
 
-1. 把整个目录放进 `MaiBot/plugins/`，目录名用 `local_jev-timing-gate`（与 manifest 的 id 对应）。
-2. 首次加载后，Runner 会依据 `config.py` 里的 `config_model` 自动生成 `config.toml`，
+先把插件放进 `MaiBot/plugins/`，目录名用 `local_jev-timing-gate`（与 manifest 的 id 对应）。
+在 MaiBot 根目录下执行：
+
+```bash
+# git clone：之后可以直接 git pull 更新
+git clone https://github.com/krijingle-create/maibot-jev-timing-gate.git plugins/local_jev-timing-gate
+
+# 或者下载 ZIP：仓库页 Download ZIP，解压后把 maibot-jev-timing-gate-main
+# 改名成 local_jev-timing-gate，整个目录放进 plugins/
+```
+
+目录名要写在 clone 命令末尾，直接 `git clone <地址>` 会建成 `maibot-jev-timing-gate`。
+
+1. 首次加载后，Runner 会依据 `config.py` 里的 `config_model` 自动生成 `config.toml`，
    并在 WebUI 的插件设置页渲染出来。本包附带的 `config.example.toml` 只是一份带注释的参考。
-3. 在设置页里选一个模型提供商模板（见下表），填上 `api_key`。`endpoint` 留空就用所选模板的默认地址，
+2. 在设置页里选一个模型提供商模板（见下表），填上 `api_key`。`endpoint` 留空就用所选模板的默认地址，
    TypeSafe 和 classifier.dev 都不用填。
-4. 想先观察：打开影子模式，它只记录本该抑制的轮次，不改行为。
+3. 想先观察：打开影子模式，它只记录本该抑制的轮次，不改行为。
+
 
 ### 模型提供商模板（设置页下拉）
 
